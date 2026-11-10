@@ -1,0 +1,47 @@
+# ============================================================
+# Projeto: Scripts de Infra para LinkedIn
+# Finalidade: evitar o versionamento de artefatos locais,
+# relatórios de diagnóstico e arquivos temporários.
+# Autor/Contexto: João Fernandes
+# ============================================================
+
+# 1. Arquivos de eventos e relatórios gerados
+# Podem conter nomes de máquinas, mensagens e dados do ambiente.
+*.[eE][vV][tT][xX]
+*.[eE][vV][tT]
+*.[cC][sS][vV]
+*.[lL][oO][gG]
+
+# 2. Pastas locais de saída, testes manuais e trabalho temporário
+# A barra inicial restringe estas regras à raiz do repositório.
+/output/
+/reports/
+/temp/
+/local/
+
+# 3. Configurações locais e arquivos de segredos
+# Exemplos sanitizados podem ser mantidos como .env.example.
+.env
+.env.*
+!.env.example
+*.local.ps1
+*.local.json
+*.local.yaml
+*.local.yml
+
+# 4. Arquivos temporários e cópias de segurança de editores
+*.tmp
+*.temp
+*.bak
+*.swp
+*.swo
+*~
+
+# 5. Arquivos auxiliares do Windows e macOS
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# 6. Configurações pessoais de IDE
+/.vs/
+/.idea/

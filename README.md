@@ -28,6 +28,7 @@ As rotinas atuais consultam:
 - Conectividade TCP com servidores e serviços.
 - Eventos críticos e erros nos logs do Windows.
 - Arquivos EVTX para exportação de campos selecionados em CSV.
+- Certificados vencidos ou próximos do vencimento nos repositórios do computador local.
 
 Os scripts de diagnóstico não iniciam serviços, não executam reparos de armazenamento e não apagam registros.
 
@@ -44,6 +45,8 @@ infra-automation-scripts/
 │   ├── armazenamento/
 │   │   ├── 002_Identificar_discos_com_pouco_espaco_livre.ps1
 │   │   └── 002-5_Consultar_a_saude_reportada_dos_discos.ps1
+│   ├── certificados/
+│   │   └── 007_Consultar_certificados_proximos_do_vencimento.ps1
 │   ├── conectividade/
 │   │   └── 004_Testar_conectividade_TCP_com_servidores_e_servicos.ps1
 │   ├── eventos/
@@ -73,6 +76,7 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 004 | [Conectividade TCP](powershell/conectividade/004_Testar_conectividade_TCP_com_servidores_e_servicos.ps1) | Testar combinações configuradas de servidor e porta. |
 | 005 | [Eventos críticos e erros recentes](powershell/eventos/005_Consultar_erros_eventos_críticos_24_hs.ps1) | Consultar os logs `System` e `Application` em um período configurável. |
 | 006 | [Conversão de EVTX para CSV](powershell/eventos/006_Converter_EVTX_to_CSV.ps1) | Exportar campos selecionados de um arquivo EVTX para CSV. |
+| 007 | [Certificados vencidos ou próximos do vencimento](powershell/certificados/007_Consultar_certificados_proximos_do_vencimento.ps1) | Consultar vencimentos nos repositórios My, WebHosting e Remote Desktop do computador local. |
 
 ## Pré-requisitos
 
@@ -97,6 +101,7 @@ De forma geral, as rotinas atuais exigem:
 | 004 | Cmdlet `Test-NetConnection` disponível e destinos autorizados para teste. |
 | 005 | Cmdlet `Get-WinEvent` e permissão de leitura nos logs consultados. |
 | 006 | Cmdlet `Get-WinEvent`, EVTX acessível e permissão de escrita em uma pasta de saída existente. |
+| 007 | Provedor `Certificate` disponível e permissão de leitura nos repositórios consultados em `Cert:\LocalMachine`. Repositórios ausentes são informados e não impedem as demais consultas. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -107,7 +112,7 @@ A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos
 No PowerShell, entre na pasta em que deseja armazenar o repositório e execute:
 
 ```powershell
-git clone [https://github.com/joaofernandespn/infra-automation-scripts.git](https://github.com/joaofernandespn/infra-automation-scripts.git)
+git clone https://github.com/joaofernandespn/infra-automation-scripts.git
 ```
 
 Depois, entre na pasta criada:
@@ -402,6 +407,65 @@ $EventosCSV |
 - Não considere um arquivo parcial como exportação concluída.
 - Campos como `MachineName` e `Message` podem conter informações sensíveis.
 
+### 007 — Consultar certificados vencidos ou próximos do vencimento
+
+Consulta os seguintes repositórios do computador local:
+
+- `Cert:\LocalMachine\My`
+- `Cert:\LocalMachine\WebHosting`
+- `Cert:\LocalMachine\Remote Desktop`
+
+Inclui todos os certificados vencidos encontrados e os que vencem até o momento da consulta acrescido da quantidade de dias informada.
+
+A janela padrão é de 30 dias. O parâmetro `Dias` aceita valores de 1 a 3650.
+
+Apresenta:
+
+- Computador e repositório de origem.
+- Assunto e emissor.
+- Data e hora do vencimento.
+- Situação: `VENCIDO` ou `A VENCER`.
+- Thumbprint.
+- Momento da coleta.
+
+#### Execução padrão
+
+```powershell
+.\powershell\certificados\007_Consultar_certificados_proximos_do_vencimento.ps1
+```
+
+#### Execução com janela personalizada
+
+```powershell
+.\powershell\certificados\007_Consultar_certificados_proximos_do_vencimento.ps1 `
+    -Dias 365 `
+    -Verbose
+```
+
+#### Visualizar os detalhes
+
+```powershell
+.\powershell\certificados\007_Consultar_certificados_proximos_do_vencimento.ps1 `
+    -Dias 365 |
+    Format-List *
+```
+
+#### Cuidados de interpretação
+
+- `A VENCER` indica um certificado ainda não vencido dentro da janela escolhida; não representa, isoladamente, urgência.
+- Certificados vencidos entram no resultado independentemente de quanto tempo passou desde o vencimento.
+- A ordenação considera vencimento e repositório.
+- O mesmo certificado em repositórios diferentes permanece em registros separados.
+- Repositórios ausentes são informados por aviso.
+- Falhas de consulta são informadas e tornam o relatório parcial.
+- Sem correspondências significa ausência de resultados apenas nos repositórios consultados com sucesso.
+- O script não consulta certificados do usuário atual, outros computadores ou endpoints.
+- Não confirma quais certificados estão em uso pelos serviços.
+- Não valida cadeia de confiança, revogação, finalidade ou início da validade.
+- Não renova, remove, importa ou altera certificados.
+- Revise nomes, assuntos e emissores antes de compartilhar os resultados.
+
+
 ## Padrão adotado nos scripts
 
 As rotinas são organizadas com:
@@ -430,6 +494,18 @@ Foram realizados testes locais em Windows 11 Pro, com os seguintes cenários obs
 | 004 | Conexões TCP com resultados de sucesso e falha. |
 | 005 | Consulta com eventos encontrados nos logs System e Application. |
 | 006 | Exportação, leitura do CSV e recusa de sobrescrita. |
+
+O Script 007 foi testado em um computador Windows local e em um servidor Windows, com os seguintes cenários observados:
+
+| Cenário do Script 007 | Resultado observado |
+|---|---|
+| Três repositórios disponíveis | Consultas concluídas sem falhas reportadas. |
+| Repositório WebHosting ausente | Aviso apresentado e demais consultas mantidas. |
+| Nenhuma correspondência | Mensagem informativa apresentada. |
+| Janela personalizada de 365 dias | Retorno de certificados classificados como `A VENCER`. |
+| Identificação e ordenação | Repositório de origem apresentado e resultados ordenados por vencimento. |
+
+Os cenários de certificado vencido e falha de leitura de repositório ainda não foram testados.
 
 Esses testes são uma validação básica no ambiente utilizado.
 

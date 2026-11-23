@@ -29,10 +29,13 @@ As rotinas atuais consultam:
 - Eventos críticos e erros nos logs do Windows.
 - Arquivos EVTX para exportação de campos selecionados em CSV.
 - Certificados vencidos ou próximos do vencimento nos repositórios do computador local.
+- Resolução DNS de um nome em servidores DNS informados, com consulta separada por servidor.
 
 Os scripts de diagnóstico não iniciam serviços, não executam reparos de armazenamento e não apagam registros.
 
 O script de conversão de EVTX para CSV cria um arquivo de saída. O teste de conectividade TCP realiza conexões aos destinos configurados.
+
+O Script 008 consulta servidores DNS informados pelo operador, mas não altera registros, cache DNS nem o arquivo Hosts.
 
 A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há scripts Bash nesta versão inicial.
 
@@ -48,7 +51,8 @@ infra-automation-scripts/
 │   ├── certificados/
 │   │   └── 007_Consultar_certificados_proximos_do_vencimento.ps1
 │   ├── conectividade/
-│   │   └── 004_Testar_conectividade_TCP_com_servidores_e_servicos.ps1
+│   │   ├── 004_Testar_conectividade_TCP_com_servidores_e_servicos.ps1
+│   │   └── 008_Diagnosticar_resolucao_DNS.ps1
 │   ├── eventos/
 │   │   ├── 005_Consultar_erros_eventos_críticos_24_hs.ps1
 │   │   └── 006_Converter_EVTX_to_CSV.ps1
@@ -77,6 +81,7 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 005 | [Eventos críticos e erros recentes](powershell/eventos/005_Consultar_erros_eventos_críticos_24_hs.ps1) | Consultar os logs `System` e `Application` em um período configurável. |
 | 006 | [Conversão de EVTX para CSV](powershell/eventos/006_Converter_EVTX_to_CSV.ps1) | Exportar campos selecionados de um arquivo EVTX para CSV. |
 | 007 | [Certificados vencidos ou próximos do vencimento](powershell/certificados/007_Consultar_certificados_proximos_do_vencimento.ps1) | Consultar vencimentos nos repositórios My, WebHosting e Remote Desktop do computador local. |
+| 008 | [Diagnóstico de resolução DNS](powershell/conectividade/008_Diagnosticar_resolucao_DNS.ps1) | Consultar um nome em servidores DNS informados, separadamente, nos tipos A, AAAA, CNAME ou SRV. |
 
 ## Pré-requisitos
 
@@ -102,6 +107,7 @@ De forma geral, as rotinas atuais exigem:
 | 005 | Cmdlet `Get-WinEvent` e permissão de leitura nos logs consultados. |
 | 006 | Cmdlet `Get-WinEvent`, EVTX acessível e permissão de escrita em uma pasta de saída existente. |
 | 007 | Provedor `Certificate` disponível e permissão de leitura nos repositórios consultados em `Cert:\LocalMachine`. Repositórios ausentes são informados e não impedem as demais consultas. |
+| 008 | Cmdlet `Resolve-DnsName` disponível e acesso de rede aos servidores DNS autorizados. A execução é interativa: nome, IPs e tipo são informados no terminal. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -465,6 +471,50 @@ Apresenta:
 - Não renova, remove, importa ou altera certificados.
 - Revise nomes, assuntos e emissores antes de compartilhar os resultados.
 
+### 008 — Diagnosticar resolução DNS
+
+Consulta um nome em um ou mais servidores DNS informados e apresenta o resultado de cada servidor separadamente.
+
+Solicita:
+
+- Nome DNS, sem URL, porta ou endereço IP.
+- IPs dos servidores DNS, separados por vírgula.
+- Tipo `A`, `AAAA`, `CNAME` ou `SRV`. Enter seleciona `A`.
+
+Apresenta:
+
+- Servidor DNS consultado.
+- Nome e tipo da consulta.
+- Situação: `RESPOSTA`, `SEM RESPOSTAS` ou `ERRO`.
+- Registro e tipo retornados.
+- Dados e TTL.
+- Momento da coleta e detalhe do erro.
+
+#### Execução
+
+```powershell
+.\powershell\conectividade\008_Diagnosticar_resolucao_DNS.ps1
+```
+
+#### Visualizar os detalhes
+
+```powershell
+.\powershell\conectividade\008_Diagnosticar_resolucao_DNS.ps1 |
+    Format-List *
+```
+
+#### Cuidados de interpretação
+
+- Diferenças entre servidores, inclusive na ordem dos endereços, não confirmam erro por si só.
+- `RESPOSTA` não comprova o funcionamento de sites ou aplicações.
+- `SEM RESPOSTAS` indica ausência de registros na seção `Answer`.
+- `ERRO` preserva a mensagem da exceção; a falha de um servidor não impede as consultas aos demais.
+- O script usa `-DnsOnly` e `-NoHostsFile`, sem consultar o arquivo Hosts.
+- Consultas reversas (PTR) não estão incluídas.
+- A validação do nome é básica e não verifica toda a sintaxe DNS.
+- Não altera DNS, não limpa cache e não modifica o arquivo Hosts.
+- Consulte somente servidores autorizados e revise nomes e IPs antes de compartilhar a saída.
+
 
 ## Padrão adotado nos scripts
 
@@ -510,6 +560,17 @@ Os cenários de certificado vencido e falha de leitura de repositório ainda nã
 Esses testes são uma validação básica no ambiente utilizado.
 
 Não representam cobertura de todos os caminhos de erro nem certificação de compatibilidade com todas as versões de Windows, PowerShell, drivers ou provedores.
+
+O Script 008 foi testado em um computador Windows local, com os seguintes cenários observados:
+
+| Cenário do Script 008 | Resultado observado |
+|---|---|
+| Consulta tipo `A` em dois servidores DNS | Resultados separados por servidor, com múltiplos registros preservados. |
+| IP incompleto, inválido ou separado por vírgulas | Entrada rejeitada. |
+| Lista com IP válido e itens inválidos | Entrada rejeitada. |
+| Tipos inválidos | Entrada rejeitada. |
+
+Os demais tipos, IPv6, nome vazio ou IP no campo de nome, Enter como tipo padrão, falha de consulta e ausência de registros em `Answer` ainda não foram testados na versão atual.
 
 ## Segurança e uso responsável
 

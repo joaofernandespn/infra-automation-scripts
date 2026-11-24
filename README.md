@@ -30,12 +30,20 @@ As rotinas atuais consultam:
 - Arquivos EVTX para exportação de campos selecionados em CSV.
 - Certificados vencidos ou próximos do vencimento nos repositórios do computador local.
 - Resolução DNS de um nome em servidores DNS informados, com consulta separada por servidor.
+- Indícios de reinicialização pendente no Registro do computador local.
+- Contas reportadas como bloqueadas no Windows local ou no Active Directory.
 
 Os scripts de diagnóstico não iniciam serviços, não executam reparos de armazenamento e não apagam registros.
 
 O script de conversão de EVTX para CSV cria um arquivo de saída. O teste de conectividade TCP realiza conexões aos destinos configurados.
 
 O Script 008 consulta servidores DNS informados pelo operador, mas não altera registros, cache DNS nem o arquivo Hosts.
+
+O Script 009 consulta três indicadores de reinicialização pendente no Registro local, sem modificar valores ou reiniciar o computador.
+
+O Script 010 permite consultar contas bloqueadas no computador local, no Active Directory ou em ambas as origens. Não desbloqueia, habilita ou modifica contas.
+
+A próxima etapa planejada da série é a criação de scripts em Python. Ainda não há scripts Python apresentados como disponíveis nesta versão.
 
 A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há scripts Bash nesta versão inicial.
 
@@ -45,6 +53,8 @@ A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há script
 infra-automation-scripts/
 ├── README.md
 ├── powershell/
+│   ├── active-directory/
+│   │   └── 010_Listar_contas_bloqueadas_Windows_AD.ps1
 │   ├── armazenamento/
 │   │   ├── 002_Identificar_discos_com_pouco_espaco_livre.ps1
 │   │   └── 002-5_Consultar_a_saude_reportada_dos_discos.ps1
@@ -59,7 +69,8 @@ infra-automation-scripts/
 │   ├── servicos/
 │   │   └── 003_ConsutarServices_Fora_Execucao.ps1
 │   └── sistema/
-│       └── 001_ConsutarServer_Memo_Uptime.ps1
+│       ├── 001_ConsutarServer_Memo_Uptime.ps1
+│       └── 009_Consultar_indicios_de_reinicializacao_pendente.ps1
 ├── bash/
 └── docs/
     └── posts-linkedin/
@@ -82,6 +93,8 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 006 | [Conversão de EVTX para CSV](powershell/eventos/006_Converter_EVTX_to_CSV.ps1) | Exportar campos selecionados de um arquivo EVTX para CSV. |
 | 007 | [Certificados vencidos ou próximos do vencimento](powershell/certificados/007_Consultar_certificados_proximos_do_vencimento.ps1) | Consultar vencimentos nos repositórios My, WebHosting e Remote Desktop do computador local. |
 | 008 | [Diagnóstico de resolução DNS](powershell/conectividade/008_Diagnosticar_resolucao_DNS.ps1) | Consultar um nome em servidores DNS informados, separadamente, nos tipos A, AAAA, CNAME ou SRV. |
+| 009 | [Indícios de reinicialização pendente](powershell/sistema/009_Consultar_indicios_de_reinicializacao_pendente.ps1) | Consultar três indicadores no Registro local, sem reiniciar o computador. |
+| 010 | [Contas bloqueadas no Windows e no AD](powershell/active-directory/010_Listar_contas_bloqueadas_Windows_AD.ps1) | Listar contas reportadas como bloqueadas no computador local, no Active Directory ou em ambas as origens. |
 
 ## Pré-requisitos
 
@@ -108,6 +121,8 @@ De forma geral, as rotinas atuais exigem:
 | 006 | Cmdlet `Get-WinEvent`, EVTX acessível e permissão de escrita em uma pasta de saída existente. |
 | 007 | Provedor `Certificate` disponível e permissão de leitura nos repositórios consultados em `Cert:\LocalMachine`. Repositórios ausentes são informados e não impedem as demais consultas. |
 | 008 | Cmdlet `Resolve-DnsName` disponível e acesso de rede aos servidores DNS autorizados. A execução é interativa: nome, IPs e tipo são informados no terminal. |
+| 009 | Permissão de leitura nas chaves consultadas em `HKEY_LOCAL_MACHINE`. Usa a visão de 64 bits do Registro quando o Windows é de 64 bits. |
+| 010 | Para consulta local: `Get-CimInstance` e acesso às classes `Win32_ComputerSystem` e `Win32_UserAccount`. Para AD: módulo `ActiveDirectory` disponível e funcional, acesso ao controlador informado e permissão de consulta. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -516,6 +531,115 @@ Apresenta:
 - Consulte somente servidores autorizados e revise nomes e IPs antes de compartilhar a saída.
 
 
+### 009 — Consultar indícios de reinicialização pendente
+
+Consulta três indicadores no Registro do computador local:
+
+- Chave `RebootPending` do Component Based Servicing.
+- Chave `RebootRequired` do Windows Update.
+- Conteúdo não vazio no valor `PendingFileRenameOperations` do Session Manager.
+
+Apresenta:
+
+- Computador e verificação realizada.
+- Situação: `INDICIO ENCONTRADO`, `NAO ENCONTRADO` ou `ERRO`.
+- Local consultado e visão do Registro.
+- Momento da coleta.
+- Detalhes do resultado ou da falha.
+
+#### Execução
+
+```powershell
+.\powershell\sistema\009_Consultar_indicios_de_reinicializacao_pendente.ps1
+```
+
+#### Visualizar os detalhes
+
+```powershell
+.\powershell\sistema\009_Consultar_indicios_de_reinicializacao_pendente.ps1 |
+    Format-List *
+```
+
+#### Cuidados de interpretação
+
+- A ausência dos três indicadores não garante ausência de outras pendências.
+- Um indicador encontrado não determina a causa ou a urgência para reiniciar.
+- A contagem de entradas textuais não representa o número de arquivos ou operações.
+- Falhas de leitura tornam a cobertura parcial.
+- O script não consulta computadores remotos.
+- Não instala atualizações, modifica o Registro ou reinicia o computador.
+
+### 010 — Listar contas bloqueadas no Windows e no AD
+
+Permite selecionar:
+
+- `Local`: contas locais deste computador.
+- `AD`: contas de usuário no Active Directory, pelo controlador informado.
+- `Ambos`: executa as consultas separadamente.
+
+Não exige informar previamente o nome de um usuário.
+
+Usa `Win32_UserAccount` na consulta local e
+`Search-ADAccount -LockedOut -UsersOnly` na consulta AD.
+
+Apresenta duas coleções:
+
+- `Contas`: nome, login, origem, destino consultado, estado reportado,
+  SID e momento da coleta.
+- `Cobertura`: situação e quantidade retornada por origem,
+  com detalhes de eventuais falhas.
+
+#### Execução interativa
+
+```powershell
+.\powershell\active-directory\010_Listar_contas_bloqueadas_Windows_AD.ps1
+```
+
+#### Consultar somente contas locais
+
+```powershell
+.\powershell\active-directory\010_Listar_contas_bloqueadas_Windows_AD.ps1 `
+    -Escopo Local
+```
+
+#### Consultar o AD
+
+```powershell
+.\powershell\active-directory\010_Listar_contas_bloqueadas_Windows_AD.ps1 `
+    -Escopo AD `
+    -ServidorAD "dc01.seudominio.local"
+```
+
+Substitua o controlador de exemplo pelo destino autorizado.
+
+#### Retornar objetos para análise
+
+```powershell
+$Relatorio = .\powershell\active-directory\010_Listar_contas_bloqueadas_Windows_AD.ps1 `
+    -Escopo Local `
+    -PassThru
+
+$Relatorio.Contas | Format-List *
+$Relatorio.Cobertura | Format-List *
+```
+
+#### Cuidados de interpretação
+
+- Consulta o estado reportado, não o histórico de eventos de bloqueio.
+- Conta bloqueada e conta desabilitada são condições diferentes.
+- A consulta local abrange apenas o computador onde o script é executado.
+- Em controlador de domínio, o script recusa a consulta local e orienta usar AD.
+- No escopo `Ambos`, a falha de uma origem não impede a consulta da outra.
+- A consulta AD usa o controlador informado; não consulta automaticamente toda a floresta.
+- O estado pode mudar durante ou após a coleta.
+- No AD, o campo `Nome` usa a propriedade `Name`, não necessariamente o nome completo da pessoa.
+- Na consulta local, se `FullName` estiver vazio, o campo `Nome` usa o nome da conta.
+- O script não consulta Microsoft Entra ID ou bloqueios de aplicações.
+- Não identifica a causa do bloqueio.
+- Uma falha não deve ser interpretada como ausência de contas bloqueadas.
+- Não desbloqueia, habilita ou modifica contas.
+
+
 ## Padrão adotado nos scripts
 
 As rotinas são organizadas com:
@@ -572,6 +696,35 @@ O Script 008 foi testado em um computador Windows local, com os seguintes cenár
 
 Os demais tipos, IPv6, nome vazio ou IP no campo de nome, Enter como tipo padrão, falha de consulta e ausência de registros em `Answer` ainda não foram testados na versão atual.
 
+### Validação do Script 009
+
+| Cenário | Resultado observado |
+|---|---|
+| Consulta local na visão `Registry64` | Três verificações concluídas, sem falhas reportadas. |
+| Chaves `RebootPending` e `RebootRequired` ausentes | Classificadas como `NAO ENCONTRADO`. |
+| `PendingFileRenameOperations` com conteúdo | Classificado como `INDICIO ENCONTRADO`. |
+| Mensagem de contagem após correção | Quantidade de entradas textuais exibida corretamente. |
+| Resumo | Coerente com as verificações apresentadas. |
+
+Permanecem sem teste: presença das duas chaves indicadoras,
+valor ausente ou vazio, tipo inesperado, falha de leitura
+e demais combinações de Windows e PowerShell.
+
+### Validação do Script 010
+
+| Cenário | Resultado observado |
+|---|---|
+| Escopo AD | Consulta concluída sem contas bloqueadas retornadas e sem erro reportado. |
+| Escopo Local em computador Windows | Consulta concluída sem contas bloqueadas retornadas e sem erro reportado. |
+| Escopo Ambos em controlador de domínio | Consulta local recusada pela proteção do script; consulta AD mantida. |
+| Cobertura | Origens apresentadas separadamente, com aviso quando uma delas não foi consultada. |
+
+Permanecem sem teste: listagem com contas bloqueadas,
+retorno com `PassThru` e demais caminhos de erro.
+
+Os testes da implementação anterior baseada em eventos 4740
+não validam esta implementação de consulta de contas bloqueadas.
+
 ## Segurança e uso responsável
 
 Antes de executar ou compartilhar alterações:
@@ -613,6 +766,7 @@ A indicação de versão no cabeçalho não significa, por si só, que exista um
 
 Possíveis próximos passos, ainda não apresentados como recursos disponíveis:
 
+- Iniciar a próxima sequência de scripts em Python, mantendo documentação, tratamento de erros e validação por cenário.
 - Rotinas Linux em Bash.
 - Documentação complementar por script.
 - Organização dos textos do LinkedIn em `docs/posts-linkedin`.

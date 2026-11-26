@@ -1,6 +1,6 @@
 # Scripts de Automação e Diagnóstico de Infraestrutura
 
-Biblioteca de scripts comentados em PowerShell para apoiar rotinas de diagnóstico e automação de Analistas de Infraestrutura e Sysadmins.
+Biblioteca de scripts comentados em PowerShell e Python para apoiar rotinas de diagnóstico e automação de Analistas de Infraestrutura e Sysadmins.
 
 O projeto também acompanha uma série de publicações no LinkedIn, conectando problemas reais do dia a dia a soluções práticas, com explicações dos comandos, pré-requisitos e limitações.
 
@@ -17,7 +17,7 @@ A proposta é simples: entender o ambiente antes de intervir.
 
 ## Escopo atual
 
-Os scripts disponíveis são voltados ao Windows e foram escritos em PowerShell.
+Os scripts PowerShell são voltados ao Windows. A série em Python foi iniciada com o Script 011, validado em Windows 11 Pro.
 
 As rotinas atuais consultam:
 
@@ -43,7 +43,7 @@ O Script 009 consulta três indicadores de reinicialização pendente no Registr
 
 O Script 010 permite consultar contas bloqueadas no computador local, no Active Directory ou em ambas as origens. Não desbloqueia, habilita ou modifica contas.
 
-A próxima etapa planejada da série é a criação de scripts em Python. Ainda não há scripts Python apresentados como disponíveis nesta versão.
+O Script 011 é o primeiro script em Python da série. Ele consulta o ambiente do processo Python que o executa e usa apenas a biblioteca padrão. Não instala pacotes, não altera configurações e não grava arquivos.
 
 A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há scripts Bash nesta versão inicial.
 
@@ -71,6 +71,9 @@ infra-automation-scripts/
 │   └── sistema/
 │       ├── 001_ConsutarServer_Memo_Uptime.ps1
 │       └── 009_Consultar_indicios_de_reinicializacao_pendente.ps1
+├── python/
+│   └── sistema/
+│       └── 011_Consultar_ambiente_Python.py
 ├── bash/
 └── docs/
     └── posts-linkedin/
@@ -95,6 +98,7 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 008 | [Diagnóstico de resolução DNS](powershell/conectividade/008_Diagnosticar_resolucao_DNS.ps1) | Consultar um nome em servidores DNS informados, separadamente, nos tipos A, AAAA, CNAME ou SRV. |
 | 009 | [Indícios de reinicialização pendente](powershell/sistema/009_Consultar_indicios_de_reinicializacao_pendente.ps1) | Consultar três indicadores no Registro local, sem reiniciar o computador. |
 | 010 | [Contas bloqueadas no Windows e no AD](powershell/active-directory/010_Listar_contas_bloqueadas_Windows_AD.ps1) | Listar contas reportadas como bloqueadas no computador local, no Active Directory ou em ambas as origens. |
+| 011 | [Consulta do ambiente Python](python/sistema/011_Consultar_ambiente_Python.py) | Apresentar versão, executável, sistema operacional e caminhos do processo Python em execução. |
 
 ## Pré-requisitos
 
@@ -107,6 +111,7 @@ De forma geral, as rotinas atuais exigem:
 - Permissão para consultar os recursos envolvidos.
 - Git instalado para clonar e atualizar a cópia local do repositório.
 - Revisão dos parâmetros, destinos e caminhos antes de executar.
+- Python 3.6 ou superior para os scripts em Python, conforme o cabeçalho de cada arquivo.
 
 ### Requisitos específicos
 
@@ -123,6 +128,7 @@ De forma geral, as rotinas atuais exigem:
 | 008 | Cmdlet `Resolve-DnsName` disponível e acesso de rede aos servidores DNS autorizados. A execução é interativa: nome, IPs e tipo são informados no terminal. |
 | 009 | Permissão de leitura nas chaves consultadas em `HKEY_LOCAL_MACHINE`. Usa a visão de 64 bits do Registro quando o Windows é de 64 bits. |
 | 010 | Para consulta local: `Get-CimInstance` e acesso às classes `Win32_ComputerSystem` e `Win32_UserAccount`. Para AD: módulo `ActiveDirectory` disponível e funcional, acesso ao controlador informado e permissão de consulta. |
+| 011 | Python instalado e acessível pelo comando `python`. Usa somente a biblioteca padrão. A validação atual cobre CPython 3.15.2 em Windows 11 Pro. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -639,6 +645,40 @@ $Relatorio.Cobertura | Format-List *
 - Uma falha não deve ser interpretada como ausência de contas bloqueadas.
 - Não desbloqueia, habilita ou modifica contas.
 
+### 011 — Consultar o ambiente Python
+
+Apresenta:
+
+- Momento da coleta, com deslocamento em relação ao UTC.
+- Versão e implementação do Python.
+- Caminho do executável Python.
+- Sistema operacional, release e versão reportados.
+- Diretório de trabalho atual.
+- Caminho absoluto do arquivo executado.
+
+#### Execução
+
+```powershell
+python .\python\sistema\011_Consultar_ambiente_Python.py
+```
+
+Para consultar o código de saída no PowerShell:
+
+```powershell
+$LASTEXITCODE
+```
+
+O código `0` indica consulta concluída. O código `1` indica falha capturada pelo script.
+
+#### Cuidados de interpretação
+
+- Consulta somente o ambiente do processo que executou o script.
+- Não faz inventário de todas as instalações do Python.
+- Outro terminal pode resolver o comando `python` para um interpretador diferente.
+- O diretório de trabalho depende de onde o script foi iniciado e pode ser diferente da pasta do arquivo.
+- Não valida o `pip`, bibliotecas externas ou a saúde do Windows.
+- Não instala, altera configurações nem grava arquivos.
+- Revise caminhos e nomes de usuário antes de compartilhar a saída.
 
 ## Padrão adotado nos scripts
 
@@ -725,6 +765,20 @@ retorno com `PassThru` e demais caminhos de erro.
 Os testes da implementação anterior baseada em eventos 4740
 não validam esta implementação de consulta de contas bloqueadas.
 
+### Validação do Script 011
+
+O Script 011 foi testado em uma máquina virtual com Windows 11 Pro, versão 10.0.26300, usando CPython 3.15.2.
+
+| Cenário | Resultado observado |
+|---|---|
+| Execução a partir da raiz do projeto | Relatório apresentado sem erro. |
+| Versão e implementação | Python 3.15.2 e CPython. |
+| Executável identificado | Caminho do interpretador apresentado. |
+| Diretório de trabalho e arquivo executado | Raiz do projeto e caminho completo do script, apresentados separadamente. |
+| Código de saída | `0` |
+
+Permanecem sem teste: caminhos de erro, outros sistemas operacionais, outras versões do Python e a versão mínima declarada no cabeçalho.
+
 ## Segurança e uso responsável
 
 Antes de executar ou compartilhar alterações:
@@ -766,7 +820,7 @@ A indicação de versão no cabeçalho não significa, por si só, que exista um
 
 Possíveis próximos passos, ainda não apresentados como recursos disponíveis:
 
-- Iniciar a próxima sequência de scripts em Python, mantendo documentação, tratamento de erros e validação por cenário.
+- Ampliar a série em Python, mantendo documentação, tratamento de erros e validação por cenário.
 - Rotinas Linux em Bash.
 - Documentação complementar por script.
 - Organização dos textos do LinkedIn em `docs/posts-linkedin`.

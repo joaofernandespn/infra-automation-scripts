@@ -45,3 +45,12 @@ Desktop.ini
 # 6. Configurações pessoais de IDE
 /.vs/
 /.idea/
+
+# 7. Artefatos gerados pelo Python
+# Caches e ambientes virtuais são locais e podem ser recriados.
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/

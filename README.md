@@ -43,7 +43,7 @@ O Script 009 consulta três indicadores de reinicialização pendente no Registr
 
 O Script 010 permite consultar contas bloqueadas no computador local, no Active Directory ou em ambas as origens. Não desbloqueia, habilita ou modifica contas.
 
-O Script 011 é o primeiro script em Python da série. Ele consulta o ambiente do processo Python que o executa e usa apenas a biblioteca padrão. Não instala pacotes, não altera configurações e não grava arquivos.
+Os Scripts 011 e 012 são os primeiros scripts em Python da série. O 011 consulta o ambiente do processo Python que o executa. O 012 consulta o ambiente de pacotes (`pip`, pasta de pacotes e ambiente virtual). Ambos usam apenas a biblioteca padrão. Não instalam pacotes, não alteram configurações e não gravam arquivos.
 
 A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há scripts Bash nesta versão inicial.
 
@@ -73,7 +73,8 @@ infra-automation-scripts/
 │       └── 009_Consultar_indicios_de_reinicializacao_pendente.ps1
 ├── python/
 │   └── sistema/
-│       └── 011_Consultar_ambiente_Python.py
+│       ├── 011_Consultar_ambiente_Python.py
+│       └── 012_Consultar_ambiente_de_pacotes_pip.py
 ├── bash/
 └── docs/
     └── posts-linkedin/
@@ -99,6 +100,7 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 009 | [Indícios de reinicialização pendente](powershell/sistema/009_Consultar_indicios_de_reinicializacao_pendente.ps1) | Consultar três indicadores no Registro local, sem reiniciar o computador. |
 | 010 | [Contas bloqueadas no Windows e no AD](powershell/active-directory/010_Listar_contas_bloqueadas_Windows_AD.ps1) | Listar contas reportadas como bloqueadas no computador local, no Active Directory ou em ambas as origens. |
 | 011 | [Consulta do ambiente Python](python/sistema/011_Consultar_ambiente_Python.py) | Apresentar versão, executável, sistema operacional e caminhos do processo Python em execução. |
+| 012 | [Ambiente de pacotes e pip](python/sistema/012_Consultar_ambiente_de_pacotes_pip.py) | Apresentar ambiente virtual, pasta de pacotes, pip do interpretador e comparação com o comando `pip` do PATH. |
 
 ## Pré-requisitos
 
@@ -129,6 +131,7 @@ De forma geral, as rotinas atuais exigem:
 | 009 | Permissão de leitura nas chaves consultadas em `HKEY_LOCAL_MACHINE`. Usa a visão de 64 bits do Registro quando o Windows é de 64 bits. |
 | 010 | Para consulta local: `Get-CimInstance` e acesso às classes `Win32_ComputerSystem` e `Win32_UserAccount`. Para AD: módulo `ActiveDirectory` disponível e funcional, acesso ao controlador informado e permissão de consulta. |
 | 011 | Python instalado e acessível pelo comando `python`. Usa somente a biblioteca padrão. A validação atual cobre CPython 3.15.2 em Windows 11 Pro. |
+| 012 | Python 3.8 ou superior, pelo uso de `importlib.metadata`. Usa somente a biblioteca padrão e executa `pip --version` para consultar a versão e o local do pip. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -680,6 +683,45 @@ O código `0` indica consulta concluída. O código `1` indica falha capturada p
 - Não instala, altera configurações nem grava arquivos.
 - Revise caminhos e nomes de usuário antes de compartilhar a saída.
 
+### 012 — Consultar o ambiente de pacotes (pip)
+
+Apresenta:
+
+- Executável e versão do Python.
+- Se o interpretador está em ambiente virtual.
+- Prefixo em uso e prefixo base.
+- Pasta de pacotes (`site-packages`) e escrita reportada pelo sistema.
+- Quantidade de pacotes visíveis ao interpretador.
+- Resultado de `python -m pip --version`.
+- Comando `pip` encontrado no PATH e seu resultado.
+- Comparação entre os dois `pip`.
+
+#### Execução
+
+```powershell
+python .\python\sistema\012_Consultar_ambiente_de_pacotes_pip.py
+```
+
+Para consultar o código de saída no PowerShell:
+
+```powershell
+$LASTEXITCODE
+```
+
+O código `0` indica consulta concluída. O código `1` indica falha capturada pelo script.
+
+#### Cuidados de interpretação
+
+- Consulta somente o interpretador que executou o script.
+- `MESMO PIP` compara o texto retornado por `pip --version`, incluindo o caminho.
+- `DIFERENTE` indica que o comando `pip` do PATH pertence a outro ambiente.
+- `NAO VERIFICADO` indica que um dos dois não pôde ser consultado.
+- A ausência de variável `VIRTUAL_ENV` não significa ausência de ambiente virtual; o script usa os prefixos do Python.
+- `Escrita reportada` vem do sistema e não garante que uma instalação será permitida.
+- Não valida versões de pacotes, vulnerabilidades, rede ou configuração de proxy.
+- Não instala, atualiza nem remove pacotes.
+- Revise caminhos e nomes de usuário antes de compartilhar a saída.
+
 ## Padrão adotado nos scripts
 
 As rotinas são organizadas com:
@@ -778,6 +820,18 @@ O Script 011 foi testado em uma máquina virtual com Windows 11 Pro, versão 10.
 | Código de saída | `0` |
 
 Permanecem sem teste: caminhos de erro, outros sistemas operacionais, outras versões do Python e a versão mínima declarada no cabeçalho.
+
+### Validação do Script 012
+
+O Script 012 foi testado em uma máquina virtual com Windows 11 Pro, usando CPython 3.15.2 e pip 26.2.2.
+
+| Cenário | Resultado observado |
+|---|---|
+| Python instalado, sem ambiente virtual | `Ambiente virtual: NAO`; `python -m pip` e comando `pip` do PATH apontaram para o mesmo pip. |
+| Execução com o Python de um ambiente virtual criado para teste | `Ambiente virtual: SIM`; prefixo e pasta de pacotes dentro do ambiente virtual. |
+| Comando `pip` do PATH fora do ambiente virtual | Comparação `DIFERENTE`, apesar da mesma versão do pip. |
+
+Permanecem sem teste: `pip` ausente, comando `pip` ausente do PATH, falha ao executar o pip, outros sistemas operacionais, outras versões do Python e a versão mínima declarada.
 
 ## Segurança e uso responsável
 

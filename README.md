@@ -43,7 +43,7 @@ O Script 009 consulta três indicadores de reinicialização pendente no Registr
 
 O Script 010 permite consultar contas bloqueadas no computador local, no Active Directory ou em ambas as origens. Não desbloqueia, habilita ou modifica contas.
 
-Os Scripts 011 e 012 são os primeiros scripts em Python da série. O 011 consulta o ambiente do processo Python que o executa. O 012 consulta o ambiente de pacotes (`pip`, pasta de pacotes e ambiente virtual). Ambos usam apenas a biblioteca padrão. Não instalam pacotes, não alteram configurações e não gravam arquivos.
+Os Scripts 011, 012 e 013 formam a série inicial em Python. O 011 consulta o ambiente do processo Python que o executa. O 012 consulta o ambiente de pacotes (`pip`, pasta de pacotes e ambiente virtual). O 013 consulta o espaço em disco e sinaliza unidades abaixo de um limite de espaço livre. Todos usam apenas a biblioteca padrão. Não instalam pacotes, não alteram configurações e não gravam arquivos.
 
 A pasta `bash` está reservada para futuras rotinas Linux. Ainda não há scripts Bash nesta versão inicial.
 
@@ -74,7 +74,8 @@ infra-automation-scripts/
 ├── python/
 │   └── sistema/
 │       ├── 011_Consultar_ambiente_Python.py
-│       └── 012_Consultar_ambiente_de_pacotes_pip.py
+│       ├── 012_Consultar_ambiente_de_pacotes_pip.py
+│       └── 013_Consultar_espaco_em_disco.py
 ├── bash/
 └── docs/
     └── posts-linkedin/
@@ -101,6 +102,7 @@ Os nomes atuais dos arquivos foram preservados para manter a relação com a seq
 | 010 | [Contas bloqueadas no Windows e no AD](powershell/active-directory/010_Listar_contas_bloqueadas_Windows_AD.ps1) | Listar contas reportadas como bloqueadas no computador local, no Active Directory ou em ambas as origens. |
 | 011 | [Consulta do ambiente Python](python/sistema/011_Consultar_ambiente_Python.py) | Apresentar versão, executável, sistema operacional e caminhos do processo Python em execução. |
 | 012 | [Ambiente de pacotes e pip](python/sistema/012_Consultar_ambiente_de_pacotes_pip.py) | Apresentar ambiente virtual, pasta de pacotes, pip do interpretador e comparação com o comando `pip` do PATH. |
+| 013 | [Espaço em disco](python/sistema/013_Consultar_espaco_em_disco.py) | Apresentar total, usado, livre e percentual livre das unidades fixas ou de caminhos informados, com alerta abaixo de um limite. |
 
 ## Pré-requisitos
 
@@ -132,6 +134,7 @@ De forma geral, as rotinas atuais exigem:
 | 010 | Para consulta local: `Get-CimInstance` e acesso às classes `Win32_ComputerSystem` e `Win32_UserAccount`. Para AD: módulo `ActiveDirectory` disponível e funcional, acesso ao controlador informado e permissão de consulta. |
 | 011 | Python instalado e acessível pelo comando `python`. Usa somente a biblioteca padrão. A validação atual cobre CPython 3.15.2 em Windows 11 Pro. |
 | 012 | Python 3.8 ou superior, pelo uso de `importlib.metadata`. Usa somente a biblioteca padrão e executa `pip --version` para consultar a versão e o local do pip. |
+| 013 | Python 3.8 ou superior. Usa somente a biblioteca padrão. Sem argumentos, consulta as unidades fixas no Windows e apenas a raiz do sistema em outros sistemas. |
 
 A disponibilidade de um cmdlet em uma sessão não garante que todos os recursos possam ser consultados com as permissões atuais.
 
@@ -722,6 +725,58 @@ O código `0` indica consulta concluída. O código `1` indica falha capturada p
 - Não instala, atualiza nem remove pacotes.
 - Revise caminhos e nomes de usuário antes de compartilhar a saída.
 
+### 013 — Consultar o espaço em disco
+
+Apresenta, por unidade ou caminho:
+
+- Capacidade total, espaço usado e espaço livre, em GiB.
+- Percentual livre.
+- Situação: `OK`, `ALERTA` ou `ERRO`.
+
+O limite padrão é de 15% de espaço livre e pode ser alterado com `--limite`.
+
+#### Execução padrão
+
+```powershell
+python .\python\sistema\013_Consultar_espaco_em_disco.py
+```
+
+#### Execução com limite personalizado
+
+```powershell
+python .\python\sistema\013_Consultar_espaco_em_disco.py --limite 20
+```
+
+#### Execução com caminhos informados
+
+```powershell
+python .\python\sistema\013_Consultar_espaco_em_disco.py C:\ D:\Dados
+```
+
+Os caminhos são exemplos. Informe somente locais que existam e que você esteja autorizado a consultar.
+
+Para consultar o código de saída no PowerShell:
+
+```powershell
+$LASTEXITCODE
+```
+
+| Código | Significado |
+|---|---|
+| `0` | Consultas concluídas e nenhuma unidade abaixo do limite. |
+| `1` | Erro de execução, argumento inválido ou falha ao consultar algum caminho. |
+| `2` | Consultas concluídas, com ao menos uma unidade abaixo do limite. |
+
+#### Cuidados de interpretação
+
+- `ALERTA` indica percentual livre abaixo do limite informado.
+- `OK` significa apenas que o critério de espaço livre foi atendido. Não avalia a saúde do disco.
+- Os valores usam GiB (1 GiB = 1024³ bytes), que o Explorador do Windows costuma exibir como "GB".
+- Sem argumentos, consulta as unidades fixas no Windows. Não lista discos de rede nem removíveis.
+- Fora do Windows, sem argumentos, consulta apenas a raiz do sistema.
+- A mensagem "Consulta concluida." também aparece quando há linhas com `ERRO`. Confira o código de saída.
+- Somente leitura: não apaga, move nem altera arquivos.
+
 ## Padrão adotado nos scripts
 
 As rotinas são organizadas com:
@@ -832,6 +887,19 @@ O Script 012 foi testado em uma máquina virtual com Windows 11 Pro, usando CPyt
 | Comando `pip` do PATH fora do ambiente virtual | Comparação `DIFERENTE`, apesar da mesma versão do pip. |
 
 Permanecem sem teste: `pip` ausente, comando `pip` ausente do PATH, falha ao executar o pip, outros sistemas operacionais, outras versões do Python e a versão mínima declarada.
+
+### Validação do Script 013
+
+O Script 013 foi testado em uma máquina virtual com Windows 11 Pro, usando CPython 3.15.2.
+
+| Cenário | Resultado observado |
+|---|---|
+| Execução padrão, sem argumentos | Unidade `C:\` apresentada, com 55,0% de espaço livre e situação `OK`. Código de saída `0`. |
+| Limite de 99% (`--limite 99`) | Mesma unidade classificada como `ALERTA`. Código de saída `2`. |
+| Caminho inexistente | Linha com `ERRO` e a mensagem do sistema. Código de saída `1`. |
+| Limite fora do intervalo (`--limite 150`) | Mensagem de erro, sem relatório. Código de saída `1`. |
+
+Permanecem sem teste: computador com mais de uma unidade fixa, caminhos existentes informados como argumento, caminhos de rede e unidades removíveis, execução fora do Windows, outras versões do Python e a versão mínima declarada no cabeçalho.
 
 ## Segurança e uso responsável
 
